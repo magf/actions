@@ -11,7 +11,6 @@ on:
 permissions:
   contents: read
 
-# Concurrency control to cancel previous runs on new push to same PR/branch
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -23,8 +22,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
-      - name: Run actionlint
-        uses: raven-actions/actionlint@v2
+      - uses: raven-actions/actionlint@v2
 
   shellcheck:
     name: Shellcheck
@@ -42,8 +40,8 @@ jobs:
           fi
           shellcheck "${files[@]}"
 
-  functional-defaults:
-    name: Functional (defaults)
+  functional:
+    name: Functional
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -54,76 +52,50 @@ jobs:
           rm -rf logs-output
           mkdir -p logs-output
 
-          # Раскладываем структуру, которая ожидается дефолтными params
-          docker run --name test-logs-defaults \
-            -v "$PWD/logs-output:/logs" \
-            ubuntu:22.04 /bin/bash <<'EOF'
-              mkdir -p /gpAdminLogs
-              mkdir -p /gpdb_src/src/test/results
-              mkdir -p /gpdb_src/gpAux/gpdemo/datadirs/log
-              mkdir -p /gpdb_src/gpAux/gpdemo/datadirs/pg_log
-
-              touch /gpAdminLogs/gpadmin.log
-              touch /gpdb_src/src/test/results/test1.diffs
-              touch /gpdb_src/gpAux/gpdemo/datadirs/log/pg.log
-              touch /gpdb_src/gpAux/gpdemo/datadirs/pg_log/pg.log
-          EOF
-
-      - name: Run collect-logs action
-        uses: ./collect-logs
-        with:
-          log_dir: /logs
-          # params и log_path_prefix не переданы, используются дефолты
-
-      - name: Generate actual output
-        run: |
-          set -euo pipefail
-          cd logs-output
-          for f in *.tar; do
-            echo "ARCHIVE: $f"
-            tar -tf "$f" | sort | sed 's/^/  /'
-          done > ../actual.out
-
-      - name: Compare with expected output
-        run: |
-          echo "=== Diff ==="
-          if ! diff -u collect-logs/test/expected-defaults.out actual.out; then
-            echo "::error::Actual output differs from expected defaults. See diff above."
-            exit 1
-          fi
-
-      - name: Clean up
-        if: always()
-        run: docker rm -f test-logs-defaults
-
-  functional-custom:
-    name: Functional (custom)
-    needs: functional-defaults
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Prepare test container
-        run: |
-          rm -rf logs-output
-          mkdir -p logs-output
-
-          docker run --name test-logs-custom \
+          docker run -i --name test-logs \
             -v "$PWD/logs-output:/logs" \
             ubuntu:24.04 /bin/bash <<'EOF'
               mkdir -p /gpAdminLogs \
                        /gpdb_src/src/test/results \
-                       /gpdb_src/gpAux/gpdemo/datadirs/log
+                       /gpdb_src/gpAux/gpdemo/datadirs/log \
+                       /gpdb_src/gpAux/gpdemo/datadirs/pg_log
 
               touch /gpAdminLogs/gpadmin.log \
                     /gpdb_src/src/test/results/test1.diffs \
                     /gpdb_src/src/test/results/test2.diffs \
                     /gpdb_src/src/test/results/not_a_diff.txt \
-                    /gpdb_src/gpAux/gpdemo/datadirs/log/pg.log
+                    /gpdb_src/gpAux/gpdemo/datadirs/log/pg.log \
+                    /gpdb_src/gpAux/gpdemo/datadirs/pg_log/pg.log
           EOF
 
-      - name: Run collect-logs action
+      - name: Run collect-logs action (defaults)
+        uses: ./collect-logs
+
+      - name: Check defaults
+        run: |
+          set -euo pipefail
+          cd logs-output
+          shopt -s nullglob
+          files=(*.tar)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::No .tar archives were collected!"
+            exit 1
+          fi
+          for f in "${files[@]}"; do
+            echo "ARCHIVE: $f"
+            tar -tf "$f" | sort | sed 's/^/  /'
+          done > ../actual-defaults.out
+          
+          cd ..
+          echo "=== Diff (defaults) ==="
+          if ! diff -u collect-logs/test/expected-defaults.out actual-defaults.out; then
+            echo "::error::Actual output differs from expected defaults."
+            exit 1
+          fi
+          
+          rm -rf logs-output/*
+
+      - name: Run collect-logs action (custom)
         uses: ./collect-logs
         with:
           log_dir: /logs
@@ -134,23 +106,28 @@ jobs:
             /non/existent/path
             gpdb_src/gpAux/gpdemo/datadirs log
 
-      - name: Generate actual output
+      - name: Check custom
         run: |
           set -euo pipefail
           cd logs-output
-          for f in *.tar; do
+          shopt -s nullglob
+          files=(*.tar)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::No .tar archives were collected!"
+            exit 1
+          fi
+          for f in "${files[@]}"; do
             echo "ARCHIVE: $f"
             tar -tf "$f" | sort | sed 's/^/  /'
-          done > ../actual.out
-
-      - name: Compare with expected output
-        run: |
-          echo "=== Diff ==="
-          if ! diff -u collect-logs/test/expected-custom.out actual.out; then
-            echo "::error::Actual output differs from expected custom params. See diff above."
+          done > ../actual-custom.out
+          
+          cd ..
+          echo "=== Diff (custom) ==="
+          if ! diff -u collect-logs/test/expected-custom.out actual-custom.out; then
+            echo "::error::Actual output differs from expected custom."
             exit 1
           fi
 
       - name: Clean up
         if: always()
-        run: docker rm -f test-logs-custom
+        run: docker rm -f test-logs
