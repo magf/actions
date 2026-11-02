@@ -3,3 +3,7 @@
 /Debug
 .bak
 .local
+
+# Test artifacts
+/logs-output/
+/actual.out

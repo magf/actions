@@ -1,9 +1,11 @@
 # .github/workflows/lint.yml
-name: Lint
+name: Lint workflows
 
 on:
   pull_request:
     branches: ['**']
+    paths:
+      - '.github/workflows/**'
 
 permissions:
   contents: read

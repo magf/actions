@@ -1,0 +1,156 @@
+# .github/workflows/check-collect-logs.yml
+name: Check collect-logs
+
+on:
+  pull_request:
+    branches: ['**']
+    paths:
+      - 'collect-logs/**'
+      - '.github/workflows/check-collect-logs.yml'
+
+permissions:
+  contents: read
+
+# Concurrency control to cancel previous runs on new push to same PR/branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Run actionlint
+        uses: raven-actions/actionlint@v2
+
+  shellcheck:
+    name: Shellcheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Run shellcheck
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(git ls-files 'collect-logs/*.sh')
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No tracked *.sh files in collect-logs, skip"
+            exit 0
+          fi
+          shellcheck "${files[@]}"
+
+  functional-defaults:
+    name: Functional (defaults)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Prepare test container
+        run: |
+          rm -rf logs-output
+          mkdir -p logs-output
+
+          # Раскладываем структуру, которая ожидается дефолтными params
+          docker run --name test-logs-defaults \
+            -v "$PWD/logs-output:/logs" \
+            ubuntu:22.04 /bin/bash <<'EOF'
+              mkdir -p /gpAdminLogs
+              mkdir -p /gpdb_src/src/test/results
+              mkdir -p /gpdb_src/gpAux/gpdemo/datadirs/log
+              mkdir -p /gpdb_src/gpAux/gpdemo/datadirs/pg_log
+
+              touch /gpAdminLogs/gpadmin.log
+              touch /gpdb_src/src/test/results/test1.diffs
+              touch /gpdb_src/gpAux/gpdemo/datadirs/log/pg.log
+              touch /gpdb_src/gpAux/gpdemo/datadirs/pg_log/pg.log
+          EOF
+
+      - name: Run collect-logs action
+        uses: ./collect-logs
+        with:
+          log_dir: /logs
+          # params и log_path_prefix не переданы, используются дефолты
+
+      - name: Generate actual output
+        run: |
+          set -euo pipefail
+          cd logs-output
+          for f in *.tar; do
+            echo "ARCHIVE: $f"
+            tar -tf "$f" | sort | sed 's/^/  /'
+          done > ../actual.out
+
+      - name: Compare with expected output
+        run: |
+          echo "=== Diff ==="
+          if ! diff -u collect-logs/test/expected-defaults.out actual.out; then
+            echo "::error::Actual output differs from expected defaults. See diff above."
+            exit 1
+          fi
+
+      - name: Clean up
+        if: always()
+        run: docker rm -f test-logs-defaults
+
+  functional-custom:
+    name: Functional (custom)
+    needs: functional-defaults
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Prepare test container
+        run: |
+          rm -rf logs-output
+          mkdir -p logs-output
+
+          docker run --name test-logs-custom \
+            -v "$PWD/logs-output:/logs" \
+            ubuntu:24.04 /bin/bash <<'EOF'
+              mkdir -p /gpAdminLogs \
+                       /gpdb_src/src/test/results \
+                       /gpdb_src/gpAux/gpdemo/datadirs/log
+
+              touch /gpAdminLogs/gpadmin.log \
+                    /gpdb_src/src/test/results/test1.diffs \
+                    /gpdb_src/src/test/results/test2.diffs \
+                    /gpdb_src/src/test/results/not_a_diff.txt \
+                    /gpdb_src/gpAux/gpdemo/datadirs/log/pg.log
+          EOF
+
+      - name: Run collect-logs action
+        uses: ./collect-logs
+        with:
+          log_dir: /logs
+          log_path_prefix: test-prefix
+          params: |
+            gpAdminLogs
+            gpdb_src/src/test *.diffs f
+            /non/existent/path
+            gpdb_src/gpAux/gpdemo/datadirs log
+
+      - name: Generate actual output
+        run: |
+          set -euo pipefail
+          cd logs-output
+          for f in *.tar; do
+            echo "ARCHIVE: $f"
+            tar -tf "$f" | sort | sed 's/^/  /'
+          done > ../actual.out
+
+      - name: Compare with expected output
+        run: |
+          echo "=== Diff ==="
+          if ! diff -u collect-logs/test/expected-custom.out actual.out; then
+            echo "::error::Actual output differs from expected custom params. See diff above."
+            exit 1
+          fi
+
+      - name: Clean up
+        if: always()
+        run: docker rm -f test-logs-custom
