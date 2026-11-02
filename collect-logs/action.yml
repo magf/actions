@@ -1,0 +1,70 @@
+# collect-logs/action.yml
+name: Collect Logs from Docker Container
+description: Collects logs from a Docker container after test execution
+
+inputs:
+  log_dir:
+    description: Directory where logs are stored
+    required: false
+    default: /logs
+  log_path_prefix:
+    description: Prefix for logs directory
+    default: ''
+    required: false
+  docker_host:
+    description: Docker host string (e.g., ssh://qemu-vm)
+    default: ''
+    required: false
+  params:
+    description: Params for find util
+    required: false
+    default: |
+      gpAdminLogs d gpAdminLogs
+      gpdb_src/src/test f *.diffs
+      gpdb_src/src/test d results
+      gpdb_src/gpAux/gpdemo/datadirs d log
+      gpdb_src/gpAux/gpdemo/datadirs d pg_log
+
+runs:
+  using: composite
+  steps:
+    - name: Collect logs
+      shell: bash
+      env:
+        LOG_DIR: ${{ inputs.log_dir }}
+        LOG_PATH_PREFIX: ${{ inputs.log_path_prefix || github.job }}
+        PARAMS: ${{ inputs.params }}
+        DOCKER_HOST: ${{ inputs.docker_host }}
+      run: |
+        set -euo pipefail
+
+        containers=$(docker ps -a --format '{{.Names}}')
+
+        for container in $containers; do
+          echo "Collect logs from '$container'"
+
+          docker start "$container" >/dev/null 2>&1 || true
+
+          if ! docker exec -i \
+            -e LOG_DIR \
+            -e LOG_PATH_PREFIX \
+            -e PARAMS \
+            "$container" \
+            /bin/bash <<'EOF'
+              mkdir -p "$LOG_DIR"
+              while IFS= read -r param; do
+                read -r path type name <<< "$param"
+                src=$(sed -E 's|^([^/])|\'"$PWD"'/\1|;s|/+|/|g' <<< $path)
+                if [ -d "$src" ]; then
+                  echo "Searching '$name' in $src"
+                  safe_suffix=$(tr -d $'"\\:<>|*?\r\n' <<< "$name" | sed -E 's/\.+/./g;s/^\.//;s/\.$//')
+                  find "$src" -name "$name" -type "$type" -print \
+                    -exec tar -rf "${LOG_DIR}/${LOG_PATH_PREFIX}_${safe_suffix}.tar" "{}" +
+                fi
+              done <<< "$PARAMS"
+              chmod -R a+rwX "$LOG_DIR" 2>/dev/null && ls -lah "$LOG_DIR"
+        EOF
+          then
+            echo "Failed to collect logs from '$container'"
+          fi
+        done
