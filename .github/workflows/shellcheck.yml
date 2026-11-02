@@ -1,0 +1,31 @@
+# .github/workflows/shellcheck.yml
+name: Shellcheck
+
+on:
+  pull_request:
+    branches: ['**']
+
+permissions:
+  contents: read
+
+# Concurrency control to cancel previous runs on new push to same PR/branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true  # Automatically cancel any previous runs for the same group
+
+jobs:
+  shellcheck:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Run shellcheck on tracked *.sh files
+        run: |
+          mapfile -t files < <(git ls-files '*.sh')
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No tracked *.sh files, skip"
+            exit 0
+          fi
+          shellcheck "${files[@]}"
