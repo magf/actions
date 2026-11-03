@@ -85,14 +85,15 @@ jobs:
             echo "ARCHIVE: $f"
             tar -tf "$f" | sort | sed 's/^/  /'
           done > ../actual-defaults.out
-          
+          cat ../actual-defaults.out
+
           cd ..
           echo "=== Diff (defaults) ==="
           if ! diff -u collect-logs/test/expected-defaults.out actual-defaults.out; then
             echo "::error::Actual output differs from expected defaults."
             exit 1
           fi
-          
+
           rm -rf logs-output/*
 
       - name: Run collect-logs action (custom)
@@ -120,7 +121,8 @@ jobs:
             echo "ARCHIVE: $f"
             tar -tf "$f" | sort | sed 's/^/  /'
           done > ../actual-custom.out
-          
+          cat ../actual-custom.out
+
           cd ..
           echo "=== Diff (custom) ==="
           if ! diff -u collect-logs/test/expected-custom.out actual-custom.out; then
