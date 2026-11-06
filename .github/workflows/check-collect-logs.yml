@@ -51,11 +51,11 @@ jobs:
           - name: defaults
           - name: custom
             params: |
-              gpAdminLogs
-              gpdb_src/src/test *.diffs f
-              gpdb_src/src/test results
-              gpdb_src/gpAux/gpdemo/datadirs log
-              gpdb_src/gpAux/gpdemo/datadirs pg_log
+              custom/gpAdminLogs
+              custom/gpdb_src/src/test *.diffs f
+              custom/gpdb_src/src/test results
+              custom/gpdb_src/gpAux/gpdemo/datadirs custom_log
+              custom/gpdb_src/gpAux/gpdemo/datadirs custom_pg_log
 
     steps:
       - uses: actions/checkout@v7
