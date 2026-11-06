@@ -106,13 +106,13 @@ jobs:
           set -euo pipefail
           for f in logs/*.tar; do
             tar -tf "$f"
-          done | sort > actual.out
+          done | sort > actual~
 
       - name: Compare with expected output
         run: |
           set -euo pipefail
           echo "=== Diff ==="
-          if ! diff -u expected~ actual.out; then
+          if ! diff -u expected~ actual~; then
             echo "::error::Actual output differs from expected."
             exit 1
           fi
