@@ -104,7 +104,10 @@ jobs:
         run: |
           set -euo pipefail
           ls -lah logs/
-          tar -tf logs/*.tar | sort > actual.out
+          
+          for f in logs/*.tar; do
+            tar -tf "$f"
+          done | sort > actual.out
 
       - name: Compare with expected output
         run: |
