@@ -96,7 +96,7 @@ jobs:
         run: |
           set -euo pipefail
           cd logs
-          tar -tf *.tar | sort > ../actual.out
+          tar -tf ./*.tar | sort > ../actual.out
 
       - name: Compare with expected output
         run: |
