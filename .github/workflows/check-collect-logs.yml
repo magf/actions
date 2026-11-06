@@ -1,0 +1,172 @@
+# .github/workflows/check-collect-logs.yml
+name: Check collect-logs
+
+on:
+  pull_request:
+    branches: ['**']
+    paths:
+      - 'collect-logs/**'
+      - '.github/workflows/check-collect-logs.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: raven-actions/actionlint@v2
+
+  shellcheck:
+    name: Shellcheck
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Run shellcheck
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(git ls-files 'collect-logs/*.sh' 'collect-logs/*.bash')
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No tracked *.sh or *.bash files in collect-logs, skip"
+            exit 0
+          fi
+          shellcheck "${files[@]}"
+
+  functional:
+    name: Functional (${{ matrix.name }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: defaults
+          - name: custom
+            params: |
+              custom/gpAdminLogs
+              custom/gpdb_src/src/test *.diffs f
+              custom/gpdb_src/src/test results
+              custom/gpdb_src/gpAux/gpdemo/datadirs custom_log
+              custom/gpdb_src/gpAux/gpdemo/datadirs custom_pg_log
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Generate test fixtures
+        env:
+          MATRIX_PARAMS: ${{ matrix.params }}
+        run: |
+          set -euo pipefail
+          if [ -z "$MATRIX_PARAMS" ]; then
+            echo "Using defaults from action.yml"
+            yq -r '.inputs.params.default' collect-logs/action.yml > params~
+          else
+            echo "Using custom params from matrix"
+            echo "$MATRIX_PARAMS" > params~
+          fi
+          
+          for gen in list expected ; do
+            collect-logs/tests/generate_$gen.bash > $gen~ < params~
+            echo "=== Generated $gen~ ==="
+            cat $gen~
+          done
+
+      - name: Create logs in container
+        run: |
+          docker run -i \
+            -v "$PWD/logs:/logs" \
+            -v "$PWD/list~:/list~" \
+            ubuntu:24.04 bash < collect-logs/tests/create_logs.bash
+
+      - name: Run collect-logs action ${{ matrix.name }}
+        if: matrix.params == ''
+        uses: ./collect-logs
+        with:
+          log_dir: /logs
+          log_path_prefix: test-${{ matrix.name }}
+
+      - name: Run collect-logs action ${{ matrix.name }}
+        if: matrix.params != ''
+        uses: ./collect-logs
+        with:
+          log_dir: /logs
+          log_path_prefix: test-${{ matrix.name }}
+          params: ${{ matrix.params }}
+
+      - name: Generate actual output
+        run: |
+          set -euo pipefail
+          for f in logs/*.tar; do
+            tar -tf "$f"
+          done | sort > actual~
+
+      - name: Compare with expected output
+        id: compare
+        run: |
+          set -euo pipefail
+          echo "=== Diff ==="
+          if ! diff -u expected~ actual~ > diff~; then
+            echo "::error::Actual output differs from expected."
+            cat diff~
+            exit 1
+          fi
+
+      - name: Generate Summary
+        if: always()
+        run: |
+          SUMMARY_FILE="$GITHUB_STEP_SUMMARY"
+          
+          {
+            if [ "${{ steps.compare.outcome }}" = "success" ]; then
+              echo "### Functional Test (\`${{ matrix.name }}\`): ✅ Passed"
+            else
+              echo "### Functional Test (\`${{ matrix.name }}\`): ❌ Failed"
+            fi
+            
+            echo ""
+            
+            echo "<details><summary>⚙️ Parameters (params~)</summary>"
+            echo ""
+            echo '```text'
+            cat params~
+            echo '```'
+            echo "</details>"
+            
+            echo "<details><summary>📁 Created Structure (list~)</summary>"
+            echo ""
+            echo '```bash'
+            cat list~
+            echo '```'
+            echo "</details>"
+            
+            echo "<details><summary>✅ Expected Output (expected~)</summary>"
+            echo ""
+            echo '```text'
+            cat expected~
+            echo '```'
+            echo "</details>"
+            
+            echo "<details><summary>📦 Actual Output (actual~)</summary>"
+            echo ""
+            echo '```text'
+            cat actual~
+            echo '```'
+            echo "</details>"
+            
+            if [ -s diff~ ]; then
+              echo "<details open><summary>❌ Diff</summary>"
+              echo ""
+              echo '```diff'
+              cat diff~
+              echo '```'
+              echo "</details>"
+            fi
+          } >> "$SUMMARY_FILE"

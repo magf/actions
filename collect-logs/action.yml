@@ -16,14 +16,18 @@ inputs:
     default: ''
     required: false
   params:
-    description: Params for find util
+    description: |
+      One entry per line. Format: <path> [<name> [<type>]].
+      1 token: find an entity named like <path>.
+      2 tokens: find any type with <name> inside <path>.
+      3 tokens: find with <name> and <type> (d or f) inside <path>.
     required: false
     default: |
-      gpAdminLogs d gpAdminLogs
-      gpdb_src/src/test f *.diffs
-      gpdb_src/src/test d results
-      gpdb_src/gpAux/gpdemo/datadirs d log
-      gpdb_src/gpAux/gpdemo/datadirs d pg_log
+      gpAdminLogs
+      gpdb_src/src/test *.diffs f
+      gpdb_src/src/test results
+      gpdb_src/gpAux/gpdemo/datadirs log
+      gpdb_src/gpAux/gpdemo/datadirs pg_log
 
 runs:
   using: composite
@@ -51,18 +55,37 @@ runs:
             -e PARAMS \
             "$container" \
             /bin/bash <<'EOF'
+              set -euo pipefail
               mkdir -p "$LOG_DIR"
+
               while IFS= read -r param; do
-                read -r path type name <<< "$param"
-                src=$(sed -E 's|^([^/])|\'"$PWD"'/\1|;s|/+|/|g' <<< $path)
-                if [ -d "$src" ]; then
-                  echo "Searching '$name' in $src"
-                  safe_suffix=$(tr -d $'"\\:<>|*?\r\n' <<< "$name" | sed -E 's/\.+/./g;s/^\.//;s/\.$//')
+                if [ -z "$param" ]; then
+                  continue
+                fi
+
+                read -r path name type <<< "$param"
+
+                src=$(sed -E 's|^([^/])|\'"$PWD"'/\1|;s|/+|/|g' <<< "$path")
+                if [ ! -d "$src" ]; then
+                  continue
+                fi
+
+                [[ -z "$name" ]] && name=$(basename "$path") || name=$(basename "$name")
+
+                safe_suffix=$(tr -d $'"\\/:<>|*?\r\n' <<< "$name" | sed -E 's/\.+/./g;s/^\.//;s/\.$//')
+
+                echo "Searching '$name' in $src"
+                if [ -n "$type" ]; then
                   find "$src" -name "$name" -type "$type" -print \
+                    -exec tar -rf "${LOG_DIR}/${LOG_PATH_PREFIX}_${safe_suffix}.tar" "{}" +
+                else
+                  find "$src" -name "$name" -print \
                     -exec tar -rf "${LOG_DIR}/${LOG_PATH_PREFIX}_${safe_suffix}.tar" "{}" +
                 fi
               done <<< "$PARAMS"
-              chmod -R a+rwX "$LOG_DIR" 2>/dev/null && ls -lah "$LOG_DIR"
+
+              chmod -R a+rwX "$LOG_DIR" 2>/dev/null || true
+              ls -lah "$LOG_DIR"
         EOF
           then
             echo "Failed to collect logs from '$container'"

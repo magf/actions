@@ -37,20 +37,24 @@ Use optional parameters:
 Default `params`:
 
 ```text
-gpAdminLogs d gpAdminLogs
-gpdb_src/src/test f *.diffs
-gpdb_src/src/test d results
-gpdb_src/gpAux/gpdemo/datadirs d log
-gpdb_src/gpAux/gpdemo/datadirs d pg_log
+gpAdminLogs
+gpdb_src/src/test *.diffs f
+gpdb_src/src/test results
+gpdb_src/gpAux/gpdemo/datadirs log
+gpdb_src/gpAux/gpdemo/datadirs pg_log
 ```
 
-Each line has this format: `<path> <type> <name>`.
+Each line has this format: `<path> [<name> [<type>]]`.
 
-- `path`: The base is the container `$PWD` (WORKDIR) by default.
-  If the path starts with `/`, the action uses the absolute path.
-- `name`: You can use `find` wildcards (for example, `*.diffs`).
-  The action removes wildcard and invalid characters from the archive suffix.
-  Example: `*.diffs` gives `{log_path_prefix}_diffs.tar`.
+- `<path>`: archive the path itself. Relative paths start at `$PWD`
+  in the container. If the path starts with `/`, the action uses
+  the absolute path.
+- `<name>`: pattern for `find -name` inside `<path>`. Wildcards are
+  allowed (for example, `*.diffs`).
+- `<type>`: `d` or `f`. If you omit it, the action does not add
+  `-type` to `find`.
+
+The archive suffix is `basename(<name>)` with invalid characters removed.
 
 ## Procedure
 

@@ -1,9 +1,11 @@
 # .github/workflows/lint.yml
-name: Lint
+name: Lint workflows
 
 on:
   pull_request:
     branches: ['**']
+    paths:
+      - '.github/workflows/**'
 
 permissions:
   contents: read
@@ -16,7 +18,7 @@ concurrency:
 jobs:
   actionlint:
     name: actionlint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
