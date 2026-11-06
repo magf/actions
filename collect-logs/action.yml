@@ -18,7 +18,7 @@ inputs:
   params:
     description: |
       One entry per line. Format: <path> [<name> [<type>]].
-      1 token: archive the path itself.
+      1 token: find an entity named like <path>.
       2 tokens: find any type with <name> inside <path>.
       3 tokens: find with <name> and <type> (d or f) inside <path>.
     required: false
@@ -70,18 +70,10 @@ runs:
                   continue
                 fi
 
-                if [ -z "$name" ]; then
-                  # 1 token: archive the path itself
-                  base=$(basename "$src")
-                  safe_suffix=$(tr -d $'"\\/:<>|*?\r\n' <<< "$base" | sed -E 's/\.+/./g;s/^\.//;s/\.$//')
-                  echo "Archiving $src"
-                  tar -rf "${LOG_DIR}/${LOG_PATH_PREFIX}_${safe_suffix}.tar" -C "$(dirname "$src")" "$base"
-                  continue
-                fi
+                [[ -z "$name" ]] && name=$(basename "$path") || name=$(basename "$name")
 
-                # 2-3 tokens: search inside src
-                name=$(basename "$name")
                 safe_suffix=$(tr -d $'"\\/:<>|*?\r\n' <<< "$name" | sed -E 's/\.+/./g;s/^\.//;s/\.$//')
+
                 echo "Searching '$name' in $src"
                 if [ -n "$type" ]; then
                   find "$src" -name "$name" -type "$type" -print \
