@@ -103,15 +103,15 @@ jobs:
       - name: Generate actual output
         run: |
           set -euo pipefail
-          cd logs
-          ls -lah
-          # tar -tf ./*.tar | sort > ../actual.out
+          ls -lah logs/
+          tar -tf logs/*.tar | sort > actual.out
 
-      # - name: Compare with expected output
-      #   run: |
-      #     set -euo pipefail
-      #     echo "=== Diff ==="
-      #     if ! diff -u collect-logs/test/expected.out actual.out; then
-      #       echo "::error::Actual output differs from expected."
-      #       exit 1
-      #     fi
+      - name: Compare with expected output
+        run: |
+          set -euo pipefail
+          cat actual.out
+          # echo "=== Diff ==="
+          # if ! diff -u collect-logs/test/expected.out actual.out; then
+          #   echo "::error::Actual output differs from expected."
+          #   exit 1
+          # fi
