@@ -4,7 +4,7 @@
 set -eux
 
 # shellcheck source=/dev/null
-source logs.inc
+source list~
 
 function _main () {
 mkdir -p "${dirs[@]}"

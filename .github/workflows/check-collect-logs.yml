@@ -67,23 +67,24 @@ jobs:
           set -euo pipefail
           if [ -z "$MATRIX_PARAMS" ]; then
             echo "Using defaults from action.yml"
-            yq -r '.inputs.params.default' collect-logs/action.yml \
-              | bash collect-logs/tests/generate_inc.bash > logs.inc
+            yq -r '.inputs.params.default' collect-logs/action.yml > params~
           else
             echo "Using custom params from matrix"
-            echo "$MATRIX_PARAMS" \
-              | bash collect-logs/tests/generate_inc.bash > logs.inc
+            echo "$MATRIX_PARAMS" > params~
           fi
           
-          echo "=== Generated logs.inc ==="
-          cat logs.inc
+          for gen in list expected ; do
+            collect-logs/tests/generate_$gen.bash > $gen~ < params~
+            echo "=== Generated $gen~ ==="
+            cat $gen~
+          done
 
       - name: Create logs in container
         run: |
           docker run -i \
             -v "$PWD/logs:/logs" \
-            -v "$PWD/logs.inc:/logs.inc" \
-            ubuntu:24.04 /bin/bash < collect-logs/tests/create_logs.bash
+            -v "$PWD/list~:/list~" \
+            ubuntu:24.04 bash < collect-logs/tests/create_logs.bash
 
       - name: Run collect-logs action ${{ matrix.name }}
         if: matrix.params == ''
@@ -103,8 +104,6 @@ jobs:
       - name: Generate actual output
         run: |
           set -euo pipefail
-          ls -lah logs/
-          
           for f in logs/*.tar; do
             tar -tf "$f"
           done | sort > actual.out
@@ -112,9 +111,8 @@ jobs:
       - name: Compare with expected output
         run: |
           set -euo pipefail
-          cat actual.out
-          # echo "=== Diff ==="
-          # if ! diff -u collect-logs/test/expected.out actual.out; then
-          #   echo "::error::Actual output differs from expected."
-          #   exit 1
-          # fi
+          echo "=== Diff ==="
+          if ! diff -u expected~ actual.out; then
+            echo "::error::Actual output differs from expected."
+            exit 1
+          fi
