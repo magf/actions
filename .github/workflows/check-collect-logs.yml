@@ -124,47 +124,49 @@ jobs:
         run: |
           SUMMARY_FILE="$GITHUB_STEP_SUMMARY"
           
-          if [ "${{ steps.compare.outcome }}" = "success" ]; then
-            echo "### Functional Test (\`${{ matrix.name }}\`): ✅ Passed" >> "$SUMMARY_FILE"
-          else
-            echo "### Functional Test (\`${{ matrix.name }}\`): ❌ Failed" >> "$SUMMARY_FILE"
-          fi
-          
-          echo "" >> "$SUMMARY_FILE"
-          
-          echo "<details><summary>⚙️ Parameters (params~)</summary>" >> "$SUMMARY_FILE"
-          echo "" >> "$SUMMARY_FILE"
-          echo '```text' >> "$SUMMARY_FILE"
-          cat params~ >> "$SUMMARY_FILE"
-          echo '```' >> "$SUMMARY_FILE"
-          echo "</details>" >> "$SUMMARY_FILE"
-          
-          echo "<details><summary>📁 Created Structure (list~)</summary>" >> "$SUMMARY_FILE"
-          echo "" >> "$SUMMARY_FILE"
-          echo '```bash' >> "$SUMMARY_FILE"
-          cat list~ >> "$SUMMARY_FILE"
-          echo '```' >> "$SUMMARY_FILE"
-          echo "</details>" >> "$SUMMARY_FILE"
-          
-          echo "<details><summary>✅ Expected Output (expected~)</summary>" >> "$SUMMARY_FILE"
-          echo "" >> "$SUMMARY_FILE"
-          echo '```text' >> "$SUMMARY_FILE"
-          cat expected~ >> "$SUMMARY_FILE"
-          echo '```' >> "$SUMMARY_FILE"
-          echo "</details>" >> "$SUMMARY_FILE"
-          
-          echo "<details><summary>📦 Actual Output (actual~)</summary>" >> "$SUMMARY_FILE"
-          echo "" >> "$SUMMARY_FILE"
-          echo '```text' >> "$SUMMARY_FILE"
-          cat actual~ >> "$SUMMARY_FILE"
-          echo '```' >> "$SUMMARY_FILE"
-          echo "</details>" >> "$SUMMARY_FILE"
-          
-          if [ -s diff~ ]; then
-            echo "<details open><summary>❌ Diff</summary>" >> "$SUMMARY_FILE"
-            echo "" >> "$SUMMARY_FILE"
-            echo '```diff' >> "$SUMMARY_FILE"
-            cat diff~ >> "$SUMMARY_FILE"
-            echo '```' >> "$SUMMARY_FILE"
-            echo "</details>" >> "$SUMMARY_FILE"
-          fi
+          {
+            if [ "${{ steps.compare.outcome }}" = "success" ]; then
+              echo "### Functional Test (\`${{ matrix.name }}\`): ✅ Passed"
+            else
+              echo "### Functional Test (\`${{ matrix.name }}\`): ❌ Failed"
+            fi
+            
+            echo ""
+            
+            echo "<details><summary>⚙️ Parameters (params~)</summary>"
+            echo ""
+            echo '```text'
+            cat params~
+            echo '```'
+            echo "</details>"
+            
+            echo "<details><summary>📁 Created Structure (list~)</summary>"
+            echo ""
+            echo '```bash'
+            cat list~
+            echo '```'
+            echo "</details>"
+            
+            echo "<details><summary>✅ Expected Output (expected~)</summary>"
+            echo ""
+            echo '```text'
+            cat expected~
+            echo '```'
+            echo "</details>"
+            
+            echo "<details><summary>📦 Actual Output (actual~)</summary>"
+            echo ""
+            echo '```text'
+            cat actual~
+            echo '```'
+            echo "</details>"
+            
+            if [ -s diff~ ]; then
+              echo "<details open><summary>❌ Diff</summary>"
+              echo ""
+              echo '```diff'
+              cat diff~
+              echo '```'
+              echo "</details>"
+            fi
+          } >> "$SUMMARY_FILE"
