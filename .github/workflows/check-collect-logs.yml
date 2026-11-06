@@ -109,10 +109,62 @@ jobs:
           done | sort > actual~
 
       - name: Compare with expected output
+        id: compare
         run: |
           set -euo pipefail
           echo "=== Diff ==="
-          if ! diff -u expected~ actual~; then
+          if ! diff -u expected~ actual~ > diff~; then
             echo "::error::Actual output differs from expected."
+            cat diff~
             exit 1
+          fi
+
+      - name: Generate Summary
+        if: always()
+        run: |
+          SUMMARY_FILE="$GITHUB_STEP_SUMMARY"
+          
+          if [ "${{ steps.compare.outcome }}" = "success" ]; then
+            echo "### Functional Test (\`${{ matrix.name }}\`): ✅ Passed" >> "$SUMMARY_FILE"
+          else
+            echo "### Functional Test (\`${{ matrix.name }}\`): ❌ Failed" >> "$SUMMARY_FILE"
+          fi
+          
+          echo "" >> "$SUMMARY_FILE"
+          
+          echo "<details><summary>⚙️ Parameters (params~)</summary>" >> "$SUMMARY_FILE"
+          echo "" >> "$SUMMARY_FILE"
+          echo '```text' >> "$SUMMARY_FILE"
+          cat params~ >> "$SUMMARY_FILE"
+          echo '```' >> "$SUMMARY_FILE"
+          echo "</details>" >> "$SUMMARY_FILE"
+          
+          echo "<details><summary>📁 Created Structure (list~)</summary>" >> "$SUMMARY_FILE"
+          echo "" >> "$SUMMARY_FILE"
+          echo '```bash' >> "$SUMMARY_FILE"
+          cat list~ >> "$SUMMARY_FILE"
+          echo '```' >> "$SUMMARY_FILE"
+          echo "</details>" >> "$SUMMARY_FILE"
+          
+          echo "<details><summary>✅ Expected Output (expected~)</summary>" >> "$SUMMARY_FILE"
+          echo "" >> "$SUMMARY_FILE"
+          echo '```text' >> "$SUMMARY_FILE"
+          cat expected~ >> "$SUMMARY_FILE"
+          echo '```' >> "$SUMMARY_FILE"
+          echo "</details>" >> "$SUMMARY_FILE"
+          
+          echo "<details><summary>📦 Actual Output (actual~)</summary>" >> "$SUMMARY_FILE"
+          echo "" >> "$SUMMARY_FILE"
+          echo '```text' >> "$SUMMARY_FILE"
+          cat actual~ >> "$SUMMARY_FILE"
+          echo '```' >> "$SUMMARY_FILE"
+          echo "</details>" >> "$SUMMARY_FILE"
+          
+          if [ -s diff~ ]; then
+            echo "<details open><summary>❌ Diff</summary>" >> "$SUMMARY_FILE"
+            echo "" >> "$SUMMARY_FILE"
+            echo '```diff' >> "$SUMMARY_FILE"
+            cat diff~ >> "$SUMMARY_FILE"
+            echo '```' >> "$SUMMARY_FILE"
+            echo "</details>" >> "$SUMMARY_FILE"
           fi
