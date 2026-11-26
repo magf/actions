@@ -1,0 +1,55 @@
+# .github/workflows/check-apt.yml
+name: Check apt
+
+on:
+  pull_request:
+    branches: ['**']
+    paths:
+      - 'apt/**'
+      - '.github/workflows/check-apt.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Action lint
+        uses: raven-actions/actionlint@v2
+
+  shellcheck:
+    name: Shellcheck
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Run shellcheck
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(git ls-files 'apt/*.sh' 'apt/*.bash')
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No tracked *.sh or *.bash files in apt, skip"
+            exit 0
+          fi
+          shellcheck "${files[@]}"
+
+  functional:
+    name: Functional
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: APT Update
+        uses: ./apt/update
