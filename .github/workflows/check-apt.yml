@@ -21,15 +21,18 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7
-      - uses: raven-actions/actionlint@v2
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Action lint
+        uses: raven-actions/actionlint@v2
 
   shellcheck:
     name: Shellcheck
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout
+        uses: actions/checkout@v7
       - name: Run shellcheck
         run: |
           set -euo pipefail
@@ -46,5 +49,7 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v7
-      - uses: ./apt/update
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: APT Update
+        uses: ./apt/update
