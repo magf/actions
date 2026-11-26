@@ -148,5 +148,4 @@ runs:
 
     - name: APT Update
       shell: bash
-      run: |
-        sudo DEBIAN_FRONTEND=noninteractive apt-get update -q
+      run:   sudo DEBIAN_FRONTEND=noninteractive apt-get update -q
