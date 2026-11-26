@@ -106,10 +106,10 @@ runs:
         # If no cloud mirror exists, keep the default mirrors only.
         set -euo pipefail
 
-        sudo tee /etc/apt/apt-mirrors.txt > /dev/null <<EOF
-        http://archive.ubuntu.com/ubuntu/ priority:2
-        http://security.ubuntu.com/ubuntu/ priority:3
-        EOF
+        printf '%s\t%s\n' \
+          'http://archive.ubuntu.com/ubuntu/'  'priority:2' \
+          'http://security.ubuntu.com/ubuntu/' 'priority:3' \
+          | sudo tee /etc/apt/apt-mirrors.txt > /dev/null
 
         cloud_mirror=""
         case "$CLOUD" in
@@ -143,7 +143,7 @@ runs:
           exit 0
         fi
 
-        sudo sed -i "1i ${cloud_mirror} priority:1" /etc/apt/apt-mirrors.txt
+        sudo sed -i "1i $(printf '%s\tpriority:1' "$cloud_mirror")" /etc/apt/apt-mirrors.txt
         echo "Cloud mirror set: $cloud_mirror"
 
     - name: APT Update
