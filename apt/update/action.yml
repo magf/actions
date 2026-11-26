@@ -107,8 +107,8 @@ runs:
         set -euo pipefail
 
         sudo tee /etc/apt/apt-mirrors.txt > /dev/null <<EOF
-        http://archive.ubuntu.com/ubuntu/ priority:2 # NOT https!
-        http://security.ubuntu.com/ubuntu/ priority:3 # NOT https!
+        http://archive.ubuntu.com/ubuntu/ priority:2
+        http://security.ubuntu.com/ubuntu/ priority:3
         EOF
 
         cloud_mirror=""
